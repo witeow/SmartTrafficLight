@@ -1,0 +1,12 @@
+{
+	"interval": 1.0,
+	"seed": 0,
+	"dir": "sample_data/",
+	"roadnetFile": "jacob_roadnet.json", 
+	"flowFile": "jacob_flow.json", 
+	"rlTrafficLight": true,
+	"laneChange": false,
+	"saveReplay": true,
+	"roadnetLogFile": "jacob_roadnetLog.json", 
+	"replayLogFile": "jacob_replayLog.txt"
+}
