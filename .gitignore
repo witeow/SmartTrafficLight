@@ -2,3 +2,6 @@ CityFlow
 gym-cityflow
 rlvenv_wsl
 *Log.txt
+models
+Training
+output_logs

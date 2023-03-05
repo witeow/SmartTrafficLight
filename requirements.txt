@@ -1,4 +1,9 @@
-json
 gym
 stable-baselines3
 numpy
+ipykernel 
+ipython 
+jupyter_client 
+jupyter_core 
+traitlets 
+ipython_genutils
