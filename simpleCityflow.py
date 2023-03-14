@@ -141,10 +141,10 @@ class simpleCityflow(gym.Env):
         for intersection in self.intersections:
             # self.lowerBound.append(smallestLightPhase)
             # self.lowerBound.append(self.minLighphaseTime)
-            self.upperBound.append([len(self.intersections[intersection]["lightPhases"])-1, 5])
+            self.upperBound.append(len(self.intersections[intersection]["lightPhases"])-1)
             if len(self.intersections[intersection]["lightPhases"])-1 > self.maxLightPhase:
                 self.maxLightPhase = len(self.intersections[intersection]["lightPhases"])-1
-            # self.upperBound.append(5) # 0 - 5 = 10 - 60  
+            self.upperBound.append(5) # 0 - 5 = 10 - 60  
 #             lightphaseDurationSpace = self.minLighphaseTime = 0 #approximate realistic time
             
         self.action_space = spaces.MultiDiscrete(np.array(self.upperBound))
@@ -174,7 +174,7 @@ class simpleCityflow(gym.Env):
         #     actionArr[actionIndex+1] =  min(math.floor((actionArr[actionIndex+1] + 1) / 2 * (self.upperBound[actionIndex+1]-self.lowerBound[actionIndex+1]+1)) + self.lowerBound[actionIndex+1], self.upperBound[actionIndex+1])
 
         print("actionArr:", actionArr)
-        minTimer = actionArr[0][1]*10 + 10
+        minTimer = actionArr[1]*10 + 10
         # negRewards = False # true means set negative infinity if lightphase action given is not part of the maxlightphases
         for intersection in range(len(self.intersectionNames)):
             # check if lightphase in intersection
@@ -183,8 +183,10 @@ class simpleCityflow(gym.Env):
             # print("len(self.intersections[self.intersectionNames[intersection]]['lightPhases'])", len(self.intersections[self.intersectionNames[intersection]]["lightPhases"]))
             # if actionArr[intersection*2] < len(self.intersections[self.intersectionNames[intersection]]["lightPhases"]):
             # self.engine.set_tl_phase(self.intersectionNames[intersection], int(actionArr[intersection*2]))
-            self.engine.set_tl_phase(self.intersectionNames[intersection][0], actionArr[intersection][1]*10 + 10)
-            minTimer = min(minTimer, actionArr[intersection][1]*10 + 10)
+            self.engine.set_tl_phase(self.intersectionNames[intersection], actionArr[intersection*2])
+            minTimer = min(minTimer, actionArr[intersection*2+1]*10 + 10)
+            print("Suggested timephase: ", actionArr[intersection*2])
+            print("Suggested timephase duration: ", actionArr[intersection*2+1]*10 + 10)
                 # if actionArr[1+intersection*2] < minTimer:
                 #     # print("Suggested timephase: ", actionArr[intersection*2])
                 #     # print("Suggested timephase duration: ", actionArr[1+ intersection*2])
@@ -207,11 +209,12 @@ class simpleCityflow(gym.Env):
         obs = self.get_observation()
         reward = self.get_reward(obs, actionArr)
         self.isDone = self.currStep >= self.maxStep
-        info = obs
+        info = {}
         self.currStep += minTimer
         self.allActionSpace += str(actionArr) + "\n"
         print("obs", obs)
         print("reward", reward)
+        print()
         # print("isDone", self.isDone)
         return obs, reward, self.isDone, info
     
@@ -328,34 +331,50 @@ class simpleCityflow(gym.Env):
         
         observationSpace = np.ndarray.tolist(observationSpace)
         
+        print("self.preWaitingSort", self.preWaitingSort)
         # prevWaitingVehicles reward calc
         for intersectionIndex, intersection in enumerate(observationSpace):
-            intersectionAction = actionSpace[intersectionIndex]
+            # intersectionAction = actionSpace[intersectionIndex]
 
-            preWaitingSort = []
-            for index, prevWaitingVehicle in enumerate(intersection):
-                preWaitingSort.append(tuple(index, prevWaitingVehicle))
-            preWaitingSort.sort(key=lambda x: x[0])
+            # print("self.preWaitingSort", self.preWaitingSort)
+            if len(self.preWaitingSort) == 0:
+                actionIndex = 0
+            else:
+                for index, lightPhase in enumerate(self.preWaitingSort[intersectionIndex]):
+                    # print("lightPhase", lightPhase)
+                    if lightPhase[0] == actionSpace[intersectionIndex*2]:
+                        actionIndex = index
 
-            for lightPhase in prevWaitingVehicle:
-                if lightPhase[0] == intersectionAction[0]:
-                    actionIndex = lightPhase[0]
+            # print("self.preWaitingSort", self.preWaitingSort)
 
             vehLeft = 0
 
             if len(self.newPrevWaitingVehicles) != 0:
                 vehRemaining = sum(list(self.newPrevWaitingVehicles.values()))
             else:
-                vehRemaining = 0
+                vehRemaining = 1e200
 
             oldTotalVeh = max(len(self.prevWaitingVehicles),1)
             for oldVeh in self.prevWaitingVehicles:
                 if oldVeh not in self.newPrevWaitingVehicles:
                     vehLeft += 1
-            
-            totalReward += (1/1+actionIndex)* 100 + ((vehLeft/oldTotalVeh) + (1/1.2**vehRemaining))*50
+            print("reward 1st part: ", (1/(1+actionIndex))* 100)
+            print("reward actionIndex: ", actionIndex)
+            print("reward vehLeft: ", vehLeft)
+            print("reward oldTotalVeh: ", oldTotalVeh)
+            print("reward vehRemaining: ", vehRemaining)
+            print("reward 4th (2 and 3) part: ", ((vehLeft/oldTotalVeh) + (1/vehRemaining))*50)
+            totalReward += (1/(1+actionIndex))* 100 + ((vehLeft/oldTotalVeh) +(1/vehRemaining))*50
 
-        # print("totalReward/len(self.intersectionNames): ", totalReward/len(self.intersectionNames))
+        self.preWaitingSort = []
+        for intersectionIndex, intersection in enumerate(observationSpace):
+            preWaitingIntersection = []
+            for index, prevWaitingVehicle in enumerate(intersection):
+                preWaitingIntersection.append(tuple([index, prevWaitingVehicle]))
+            preWaitingIntersection.sort(key=lambda x: x[1], reverse=True)
+            self.preWaitingSort.append(preWaitingIntersection)
+
+        print("totalReward/len(self.intersectionNames): ", totalReward/len(self.intersectionNames))
         # print("self.intersectionNames", self.intersectionNames)
         return totalReward/len(self.intersectionNames)
             
@@ -387,6 +406,7 @@ class simpleCityflow(gym.Env):
         # print("obs", obs)
         self.isDone = False
         self.prevWaitingVehicles = {}
+        self.preWaitingSort = []
         return obs
     
     def move_file_with_counter(self):
