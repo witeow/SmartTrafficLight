@@ -5,7 +5,8 @@ import os
 # import cityflow
 import numpy as np
 import json
-from gymCityflow import cityFlowGym
+# from gymCityflow import cityFlowGym
+from simpleCityflow import simpleCityflow
 import datetime
 import shutil
 
@@ -35,14 +36,14 @@ desFlow = logOutFolder + "/jacob_flow.json"
 desRoadnet = logOutFolder + "/jacob_roadnet.json"
 shutil.copy(srcFlow, desFlow)
 shutil.copy(srcRoadnet, desRoadnet)
-cityflowEnv = cityFlowGym("sample_data/jacob_config.json", 3600, logOutFolder)
+cityflowEnv = simpleCityflow("sample_data/jacob_config.json", 3600, logOutFolder, 2)
 log_path = os.path.join('Training', 'Logs')
 state = cityflowEnv.reset()
 
-episodes = 3
+episodes = 21
 for episode in range(1, episodes+1):
     
-#     cityflowEnv.engine.reset()
+    # cityflowEnv.engine.reset()
     done = False
     score = 0
     step = 0
@@ -62,11 +63,11 @@ for episode in range(1, episodes+1):
 #         env.render()
         action = cityflowEnv.action_space.sample()
         n_state, reward, done, info = cityflowEnv.step(action)
-        print("action", action)
-        print("n_state", n_state)
-        print("reward", reward)
-        print("done", done)
-        print("info", info)
+        # print("action", action)
+        # print("n_state", n_state)
+        # print("reward", reward)
+        # print("done", done)
+        # print("info", info)
         print("stepCount", cityflowEnv.currStep)
         print()
         score += reward

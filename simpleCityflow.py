@@ -20,7 +20,7 @@ from gym import spaces, logger
 # from stable_baselines3.common.evaluation import evaluate_policy
 # from stable_baselines3.common.env_checker import check_env
 
-class cityFlowGym(gym.Env):
+class simpleCityflow(gym.Env):
     metadata = {'render.modes': ['human']}
 
     def __init__(self, config_path, episodeSteps, outputFolder, recordInterval):
@@ -59,6 +59,7 @@ class cityFlowGym(gym.Env):
         self.maxLightPhase = 0
         self.allActionSpace = ""
         self.prevWaitingVehicles = {} # vehId : how many actions round waited
+        self.newPrevWaitingVehicles = {}
 
 
         
@@ -138,71 +139,73 @@ class cityFlowGym(gym.Env):
         self.lowerBound = []
         smallestLightPhase = 0 # change smallestLightPhase of lightphase if needed
         for intersection in self.intersections:
-            self.lowerBound.append(smallestLightPhase)
-            self.lowerBound.append(self.minLighphaseTime)
-            self.upperBound.append(len(self.intersections[intersection]["lightPhases"])-1)
+            # self.lowerBound.append(smallestLightPhase)
+            # self.lowerBound.append(self.minLighphaseTime)
+            self.upperBound.append([len(self.intersections[intersection]["lightPhases"])-1, 5])
             if len(self.intersections[intersection]["lightPhases"])-1 > self.maxLightPhase:
                 self.maxLightPhase = len(self.intersections[intersection]["lightPhases"])-1
-            self.upperBound.append(self.maxLighphaseTime)
+            # self.upperBound.append(5) # 0 - 5 = 10 - 60  
 #             lightphaseDurationSpace = self.minLighphaseTime = 0 #approximate realistic time
             
-        self.action_space = spaces.Box(
-            np.array([-1 for i in range(len(self.lowerBound))]).astype(np.float64), 
-            np.array([1 for i in range(len(self.upperBound))]).astype(np.float64),
-            dtype = np.float64
-        )
+        self.action_space = spaces.MultiDiscrete(np.array(self.upperBound))
         
         # define observation space
         numOfIntersections = len(self.intersectionNames)
-        observationSpace = {
-                "numVehicles" : spaces.Box(0, np.inf, (numOfIntersections, self.maxLightPhase+1), dtype=np.int32),
-                "numWaitingVehicles" : spaces.Box(0, np.inf, (numOfIntersections, self.maxLightPhase+1), dtype=np.int32),
-                "avgSpeed" : spaces.Box(0, np.inf, (numOfIntersections, self.maxLightPhase+1), dtype=np.float32),
-                "prevWaitingVehicles" : spaces.Box(0, np.inf, (numOfIntersections, self.maxLightPhase+1), dtype=np.float32)
-            }
+        observationSpace = spaces.Box(0, np.inf, (numOfIntersections, self.maxLightPhase+1), dtype=np.int32)
+        self.observation_space = observationSpace   
+            # {
+            #     "numVehicles" : spaces.Box(0, np.inf, (numOfIntersections, self.maxLightPhase+1), dtype=np.int32),
+            #     "numWaitingVehicles" : spaces.Box(0, np.inf, (numOfIntersections, self.maxLightPhase+1), dtype=np.int32),
+            #     "avgSpeed" : spaces.Box(0, np.inf, (numOfIntersections, self.maxLightPhase+1), dtype=np.float32),
+            #     "prevWaitingVehicles" : spaces.Box(0, np.inf, (numOfIntersections, self.maxLightPhase+1), dtype=np.float32)
+            #     spaces.Box(0, np.inf, (numOfIntersections, self.maxLightPhase+1), dtype=np.float32)
+            # }
         
-        self.observation_space = spaces.Dict(observationSpace)
+        # self.observation_space = spaces.Dict(observationSpace)
 
     def step(self, action):
-        # print("action:", action)
+        print("action:", action)
         actionArr = np.ndarray.tolist(action)
         # print("Old actionArr:", actionArr)
         # actionArr = [int(x) for x in actionArr]
         # converting action space to lightphase and lightphase duration
-        for actionIndex in range(0, len(actionArr), 2):
-            actionArr[actionIndex] =  min(math.floor((actionArr[actionIndex] + 1) / 2 * (self.upperBound[actionIndex]+1)), self.upperBound[actionIndex])
-            actionArr[actionIndex+1] =  min(math.floor((actionArr[actionIndex+1] + 1) / 2 * (self.upperBound[actionIndex+1]-self.lowerBound[actionIndex+1]+1)) + self.lowerBound[actionIndex+1], self.upperBound[actionIndex+1])
+        # for actionIndex in range(0, len(actionArr), 2):
+        #     actionArr[actionIndex] =  min(math.floor((actionArr[actionIndex] + 1) / 2 * (self.upperBound[actionIndex]+1)), self.upperBound[actionIndex])
+        #     actionArr[actionIndex+1] =  min(math.floor((actionArr[actionIndex+1] + 1) / 2 * (self.upperBound[actionIndex+1]-self.lowerBound[actionIndex+1]+1)) + self.lowerBound[actionIndex+1], self.upperBound[actionIndex+1])
 
         print("actionArr:", actionArr)
-        minTimer = self.maxLighphaseTime
-        negRewards = False # true means set negative infinity if lightphase action given is not part of the maxlightphases
+        minTimer = actionArr[0][1]*10 + 10
+        # negRewards = False # true means set negative infinity if lightphase action given is not part of the maxlightphases
         for intersection in range(len(self.intersectionNames)):
             # check if lightphase in intersection
             # print("Current intersection: ", self.intersectionNames[intersection])
             # print("actionArr[intersection*2]", actionArr[intersection*2])
             # print("len(self.intersections[self.intersectionNames[intersection]]['lightPhases'])", len(self.intersections[self.intersectionNames[intersection]]["lightPhases"]))
-            if actionArr[intersection*2] < len(self.intersections[self.intersectionNames[intersection]]["lightPhases"]):
-                self.engine.set_tl_phase(self.intersectionNames[intersection], int(actionArr[intersection*2]))
-                minTimer = min(minTimer, actionArr[1+intersection*2])
+            # if actionArr[intersection*2] < len(self.intersections[self.intersectionNames[intersection]]["lightPhases"]):
+            # self.engine.set_tl_phase(self.intersectionNames[intersection], int(actionArr[intersection*2]))
+            self.engine.set_tl_phase(self.intersectionNames[intersection][0], actionArr[intersection][1]*10 + 10)
+            minTimer = min(minTimer, actionArr[intersection][1]*10 + 10)
                 # if actionArr[1+intersection*2] < minTimer:
                 #     # print("Suggested timephase: ", actionArr[intersection*2])
                 #     # print("Suggested timephase duration: ", actionArr[1+ intersection*2])
                 #     # print()
                 #     minTimer = actionArr[1+ intersection*2]
                     
-            else:
-                negRewards = True
+            # else:
+            #     negRewards = True
                 
         # let scenario run for minTimer long
-        if minTimer < self.minLighphaseTime:
-            minTimer = 10
+        # if minTimer < self.minLighphaseTime:
+        #     minTimer = 10
         
         for second in range(minTimer):
             self.engine.next_step()
             # print("going next step ", second)
         
+        self.prevWaitingVehicles = self.newPrevWaitingVehicles
+
         obs = self.get_observation()
-        reward = self.get_reward(obs, negRewards)
+        reward = self.get_reward(obs, actionArr)
         self.isDone = self.currStep >= self.maxStep
         info = obs
         self.currStep += minTimer
@@ -238,9 +241,6 @@ class cityFlowGym(gym.Env):
         '''
         for roadLaneDict = {intersectionId : 
                                 {roadLaneId: 
-                                    {"numVehicles" : int,
-                                     "numWaitingVehicles" : int,
-                                     "avgSpeed" : float,
                                      "prevWaitingVehicles" :int
                                                 
                                     }
@@ -250,7 +250,7 @@ class cityFlowGym(gym.Env):
                             }
         '''
         roadLaneDict = {}
-        newPrevWaitingVehicles = {}
+        self.newPrevWaitingVehicles = {}
         for intersectionId, intersectionValue in self.intersections.items():
             roadLaneByIntersectionDict = {}
             newPrevWaitingVehiclesIntersection = {}
@@ -262,38 +262,23 @@ class cityFlowGym(gym.Env):
             # for each roadlane, find out num of waiting vehicles, and vehicles (waiting + nonwaiting) and speed
             for roadLane in roadLaneByIntersectionSet:
                 tempRoadLaneDict = {}
-                tempVehiclesArr = vehicleLaneDict[roadLane]
-                
-                tempRoadLaneDict["numVehicles"] = len(tempVehiclesArr)
-
-                tempRoadLaneDict["numWaitingVehicles"] = vehiclesWaitingByLaneDict[roadLane]
-
-                if len(tempVehiclesArr) == 0:
-                    tempRoadLaneDict["avgSpeed"] = 0
-                else:
-                    tempAvgSpeed = 0
-                    for vehicle in tempVehiclesArr:
-                        tempAvgSpeed += vehiclesSpeedDict[vehicle]
-                    tempRoadLaneDict["avgSpeed"] = tempAvgSpeed/len(tempVehiclesArr)
 
                 # calc prevWaitingVehicles
+                tempRoadLaneDict["prevWaitingVehicles"] = vehiclesWaitingByLaneDict[roadLane]
                 newPrevWaitingVehiclesLane = {}
-                prevWaitingCount = 0
+
+                # see which veh id is waiting
                 for veh in vehicleLaneDict[roadLane]:
                     if vehiclesSpeedDict[veh] < 0.1:
+                        # tempRoadLaneDict["prevWaitingVehicles"] += 1
                         if veh not in self.prevWaitingVehicles:
                             newPrevWaitingVehiclesLane[veh] = 1
-                            prevWaitingCount += 1
                         else:
-                            newPrevWaitingVehiclesLane[veh] = self.prevWaitingVehicles[veh]*1.2
-                            prevWaitingCount += (self.prevWaitingVehicles[veh]*1.2)
+                            newPrevWaitingVehiclesLane[veh] = self.prevWaitingVehicles[veh] + 1
                             
 
                 # update on a lane level
                 newPrevWaitingVehiclesIntersection.update(newPrevWaitingVehiclesLane)
-
-                # update new weights to tempRoadLaneDict
-                tempRoadLaneDict["prevWaitingVehicles"] = prevWaitingCount
                 
                 roadLaneByIntersectionDict[roadLane] = tempRoadLaneDict
                 
@@ -301,33 +286,20 @@ class cityFlowGym(gym.Env):
             roadLaneDict[intersectionId] = roadLaneByIntersectionDict
 
             # update on an intersection level
-            newPrevWaitingVehicles.update(newPrevWaitingVehiclesIntersection)
+            self.newPrevWaitingVehicles.update(newPrevWaitingVehiclesIntersection)
 
-        # update on a whole env level
-        self.prevWaitingVehicles = newPrevWaitingVehicles
-        
-        
+        # # update on a whole env level
+        # self.prevWaitingVehicles = newPrevWaitingVehicles
         
         # define observation space
-        observationSpace = {
-                "numVehicles" : [],
-                "numWaitingVehicles" : [],             
-                "avgSpeed" : [],
-                "prevWaitingVehicles" : []
-            }
+        observationSpace = []
         
         # for each intersection 
         for intersectionId, intersectionValue in self.intersections.items():
-            numVehiclesArr = []
-            numWaitingVehiclesArr = []             
-            avgSpeedArr = []
             prevWaitingVehiclesArr = []
             
             # for each lightphase in the intersection
             for lightPhase, roadLaneArr in intersectionValue["lightPhases"].items():
-                totalVehiclesByPhase = 0
-                waitingVehiclesByPhase = 0
-                totalSpeedByPhase = 0
                 prevWaitingVehiclesByPhase = 0
                 
                 # for each roadLane (availableRoadLinks) in each lightphase
@@ -336,84 +308,52 @@ class cityFlowGym(gym.Env):
                 # break
                 for roadLaneId in roadLaneArr:
                     # print("Calculated roadLaneId: ", roadLaneId)
-                    totalVehiclesByPhase += roadLaneDict[intersectionId][roadLaneId]["numVehicles"]
-                    waitingVehiclesByPhase += roadLaneDict[intersectionId][roadLaneId]["numWaitingVehicles"]
-                    totalSpeedByPhase += (roadLaneDict[intersectionId][roadLaneId]["numVehicles"] * 
-                                        roadLaneDict[intersectionId][roadLaneId]["avgSpeed"])
                     prevWaitingVehiclesByPhase += roadLaneDict[intersectionId][roadLaneId]["prevWaitingVehicles"]
-                    
-                # error checking if theres no vehicles in the lane to eliminate divide by zero error
-                if totalVehiclesByPhase == 0:
-                    avgSpeedByPhase = 0
-                else:
-                    avgSpeedByPhase = totalSpeedByPhase/totalVehiclesByPhase
-                    
-                numVehiclesArr.append(totalVehiclesByPhase)
-                numWaitingVehiclesArr.append(waitingVehiclesByPhase)
-                avgSpeedArr.append(avgSpeedByPhase)
+                
                 prevWaitingVehiclesArr.append(prevWaitingVehiclesByPhase)
                 
             # convert to np array
-            tempNumVehicles = np.array(numVehiclesArr)
-            tempNumWaitingVehicles = np.array(numWaitingVehiclesArr)
-            tempAvgSpeed = np.array(avgSpeedArr)
-            tempPrevWaitingVehicles = np.array(prevWaitingVehiclesArr)
-            
-            observationSpace["numVehicles"].append(tempNumVehicles)
-            observationSpace["numWaitingVehicles"].append(tempNumWaitingVehicles)
-            observationSpace["avgSpeed"].append(tempAvgSpeed)
-            observationSpace["prevWaitingVehicles"].append(tempPrevWaitingVehicles)
+            observationSpace.append(np.array(prevWaitingVehiclesArr))
                 
         # convert to np array
-        observationSpace["numVehicles"] = np.array(observationSpace["numVehicles"])
-        observationSpace["numWaitingVehicles"] = np.array(observationSpace["numWaitingVehicles"])
-        observationSpace["avgSpeed"] = np.array(observationSpace["avgSpeed"])
-        observationSpace["prevWaitingVehicles"] = np.array(observationSpace["prevWaitingVehicles"])
+        observationSpace = np.array(observationSpace)
 
         # print("observationSpace", observationSpace)
         return observationSpace
         
-    def get_reward(self, observationSpace, negRewards):
+    def get_reward(self, observationSpace, actionSpace):
         
-        # if model returns lightphase that is not possible
-        if negRewards == True:
-            return -np.inf
         # aggregate total reward from all intersections
         totalReward = 0
         
-        # numVehicles reward calc
-        for intersection in observationSpace["numVehicles"]:
-            for veh in intersection:
-                
-                totalReward -= veh
-                # print("veh", totalReward)
-                
-        # numWaitingVehicles reward calc
-        for intersection in observationSpace["numWaitingVehicles"]:
-            for waitingVeh in intersection:
-                if waitingVeh == 0:
-                    totalReward += 100
-                else:
-                    totalReward -= waitingVeh*100
-                # print("waitingVeh", totalReward)
-                    
-                        
-        # avgSpeed reward calc
-        for intersection in observationSpace["avgSpeed"]:
-            for speed in intersection:
-                
-                #reward if speed is
-                if (speed-5) >= self.maxSpeed:
-                    totalReward += 50
-                else:
-                    totalReward -= ((self.maxSpeed - speed)/self.maxSpeed)*50
-                # print("speed", totalReward)
+        observationSpace = np.ndarray.tolist(observationSpace)
         
         # prevWaitingVehicles reward calc
-        for intersection in observationSpace["prevWaitingVehicles"]:
-            for prevWaitingVehicle in intersection:
-                # totalReward -= (prevWaitingVehicle*1000)
-                totalReward -= min(10000, prevWaitingVehicle)
+        for intersectionIndex, intersection in enumerate(observationSpace):
+            intersectionAction = actionSpace[intersectionIndex]
+
+            preWaitingSort = []
+            for index, prevWaitingVehicle in enumerate(intersection):
+                preWaitingSort.append(tuple(index, prevWaitingVehicle))
+            preWaitingSort.sort(key=lambda x: x[0])
+
+            for lightPhase in prevWaitingVehicle:
+                if lightPhase[0] == intersectionAction[0]:
+                    actionIndex = lightPhase[0]
+
+            vehLeft = 0
+
+            if len(self.newPrevWaitingVehicles) != 0:
+                vehRemaining = sum(list(self.newPrevWaitingVehicles.values()))
+            else:
+                vehRemaining = 0
+
+            oldTotalVeh = max(len(self.prevWaitingVehicles),1)
+            for oldVeh in self.prevWaitingVehicles:
+                if oldVeh not in self.newPrevWaitingVehicles:
+                    vehLeft += 1
+            
+            totalReward += (1/1+actionIndex)* 100 + ((vehLeft/oldTotalVeh) + (1/1.2**vehRemaining))*50
 
         # print("totalReward/len(self.intersectionNames): ", totalReward/len(self.intersectionNames))
         # print("self.intersectionNames", self.intersectionNames)
@@ -495,11 +435,6 @@ class cityFlowGym(gym.Env):
         print("Count: ", self.resetCount+1)
         print("Replay, roadnet log files, and allAction file have been moved to ", dest_folder)
 
-
-    
-
-        
-        
 
     def render(self, mode='human', close=False):
         pass
