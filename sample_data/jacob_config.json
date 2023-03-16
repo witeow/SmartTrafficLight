@@ -1,1 +1,1 @@
-{"interval": 1.0, "seed": 0, "dir": "output_logs/training_14-Mar_1940/", "roadnetFile": "jacob_roadnet.json", "flowFile": "jacob_flow.json", "rlTrafficLight": true, "laneChange": false, "saveReplay": true, "roadnetLogFile": "jacob_roadnetLog.json", "replayLogFile": "jacob_replayLog_0.txt"}
+{"interval": 1.0, "seed": 0, "dir": "output_logs/training_15-Mar_1446/", "roadnetFile": "jacob_roadnet.json", "flowFile": "jacob_flow.json", "rlTrafficLight": true, "laneChange": false, "saveReplay": true, "roadnetLogFile": "jacob_roadnetLog.json", "replayLogFile": "jacob_replayLog_0.txt"}

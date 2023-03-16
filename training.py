@@ -154,5 +154,5 @@ log_path = os.path.join('Training', 'Logs')
 model = PPO("MlpPolicy", cityflowEnv, verbose=1, tensorboard_log=log_path)
 
 model.learn(total_timesteps=360000)
-models_dir = "models/PPO_360000_" + timestamp + "_simple"
+models_dir = "models/PPO_360000_" + timestamp + "_simpleMix"
 model.save(f"{models_dir}")
