@@ -7,3 +7,7 @@ Training
 output_logs
 Optimizing
 _pycache_
+*.png
+tensorboardImages
+fyp_logs
+*.zip
